@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HoloKudos</title>
+<script type="importmap">
+{
+  "imports": {
+    "@holochain/client": "https://esm.sh/@holochain/client@0.18",
+    "@tauri-apps/api": "https://esm.sh/@tauri-apps/api@2"
+  }
+}
+</script>
+<style>
+  :root {
+    --bg:#0d0f14; --surface:#161a24; --border:#1e2535;
+    --accent:#00e5b4; --accent2:#7c6ff7; --text:#e8eaf0; --muted:#6b7280;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--border);background:#0b0d12;position:sticky;top:0;z-index:100}
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+  .logo-text{font-size:20px;font-weight:700}.logo-text span{color:var(--accent)}
+  .tagline{font-size:11px;color:var(--muted)}
+  .agent-pill{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:12px}
+  .dot{width:8px;height:8px;background:var(--accent);border-radius:50%;animation:pulse 2s infinite}
+  .key{font-family:monospace;color:var(--accent)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  #splash{display:flex;flex-direction:column;align-items:center;justify-content:center;height:70vh;gap:16px;color:var(--muted)}
+  .spin{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .err{background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.3);border-radius:14px;padding:24px 28px;max-width:480px;text-align:center;color:#ff6b88;font-size:14px;line-height:1.7}
+  .err code{background:rgba(255,255,255,.05);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12px}
+
+  .wrap{max-width:920px;margin:0 auto;padding:28px 16px;display:grid;grid-template-columns:1fr 290px;gap:22px}
+  @media(max-width:680px){.wrap{grid-template-columns:1fr}}
+  #app{display:none}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:14px}
+  .ctitle{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:14px}
+  label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px}
+  select,textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 13px;font-size:14px;font-family:inherit;outline:none;transition:border-color .2s}
+  select:focus,textarea:focus{border-color:var(--accent)}
+  textarea{resize:none;min-height:80px}
+  .row{margin-bottom:12px}
+
+  .cats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .cat{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 6px;cursor:pointer;font-size:11px;color:var(--muted);text-align:center;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:4px}
+  .cat:hover{border-color:var(--accent);color:var(--text)}
+  .cat.on{border-color:var(--accent);background:rgba(0,229,180,.08);color:var(--accent)}
+  .ci{font-size:18px}
+
+  .btn{width:100%;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:linear-gradient(135deg,var(--accent),#00b890);color:#0a1a14;transition:opacity .15s}
+  .btn:hover{opacity:.85}.btn:disabled{opacity:.45;cursor:not-allowed}
+
+  .ftitle{font-size:18px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+  .ldot{width:8px;height:8px;background:var(--accent);border-radius:50%;animation:pulse 2s infinite}
+
+  .kcard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:17px;margin-bottom:12px;animation:fi .3s ease;position:relative;overflow:hidden}
+  .kcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(to bottom,var(--accent),var(--accent2));border-radius:2px 0 0 2px}
+  @keyframes fi{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  .kh{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;flex-wrap:wrap;gap:5px}
+  .ka{display:flex;align-items:center;gap:5px;font-size:12px}
+  .fp{font-family:monospace;font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:3px 9px;color:var(--accent2)}
+  .tp{font-family:monospace;font-size:10px;background:rgba(0,229,180,.08);border:1px solid rgba(0,229,180,.2);border-radius:20px;padding:3px 9px;color:var(--accent)}
+  .arr{color:var(--muted)}
+  .ctag{font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--muted)}
+  .km{font-size:14px;line-height:1.6;margin:9px 0}
+  .kf{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px}
+  .sig{font-family:monospace;font-size:10px;color:var(--muted);display:flex;align-items:center;gap:3px}
+  .ok{color:var(--accent)}.dh{font-family:monospace;font-size:10px;background:rgba(124,111,247,.1);border:1px solid rgba(124,111,247,.2);color:var(--accent2);border-radius:4px;padding:2px 6px}
+  .ts{font-size:11px;color:var(--muted)}
+  .empty{text-align:center;color:var(--muted);font-size:14px;padding:36px 0}
+
+  .sbox{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:13px;text-align:center}
+  .sn{font-size:24px;font-weight:700;color:var(--accent)}.sl{font-size:11px;color:var(--muted);margin-top:2px}
+  .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+
+  .lr{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)}
+  .lr:last-child{border-bottom:none}
+  .lrank{width:22px;text-align:center;font-size:15px}
+  .li{flex:1;overflow:hidden}
+  .ln{font-size:13px;font-weight:600}
+  .lk{font-family:monospace;font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lc{background:rgba(0,229,180,.1);color:var(--accent);border-radius:20px;padding:3px 9px;font-size:12px;font-weight:700;white-space:nowrap}
+
+  #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--accent);color:#0a1a14;padding:11px 22px;border-radius:20px;font-weight:600;font-size:14px;transition:transform .3s;z-index:999;pointer-events:none}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <div class="logo-text">Holo<span>Kudos</span></div>
+      <div class="tagline">Decentralized Peer Recognition · Holochain</div>
+    </div>
+  </div>
+  <div class="agent-pill">
+    <div class="dot"></div>
+    <span>You:</span>
+    <span class="key" id="myKey">connecting…</span>
+  </div>
+</header>
+
+<div id="splash">
+  <div class="spin"></div>
+  <div>Starting Holochain…</div>
+  <div style="font-size:12px;margin-top:-8px">First launch may take a few seconds</div>
+</div>
+
+<div id="app">
+  <div class="wrap">
+    <!-- LEFT -->
+    <div>
+      <div class="card">
+        <div class="ctitle">Give Kudos</div>
+        <div class="row">
+          <label>To</label>
+          <select id="toAgent"><option value="">Select a peer…</option><option value="__paste__">Paste agent key…</option></select>
+        </div>
+        <div class="row">
+          <label>Category</label>
+          <div class="cats" id="cats"></div>
+        </div>
+        <div class="row">
+          <label>Message</label>
+          <textarea id="msg" placeholder="What did they do? This is signed by your key and stored permanently." maxlength="500"></textarea>
+        </div>
+        <button class="btn" id="sendBtn" onclick="send()">⚡ Sign & Send to DHT</button>
+      </div>
+      <div class="ftitle"><div class="ldot"></div>Live Feed</div>
+      <div id="feed"><div class="empty">No kudos yet — be the first!</div></div>
+    </div>
+
+    <!-- RIGHT -->
+    <div>
+      <div class="card">
+        <div class="ctitle">Stats</div>
+        <div class="sgrid">
+          <div class="sbox"><div class="sn" id="sKudos">0</div><div class="sl">Kudos</div></div>
+          <div class="sbox"><div class="sn" id="sPeers">–</div><div class="sl">Peers</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Top Recipients</div>
+        <div id="lb"><div class="empty" style="padding:14px">No data yet</div></div>
+      </div>
+      <div class="card" style="font-size:12px;color:var(--muted);line-height:1.8">
+        <div class="ctitle">How it works</div>
+        Every kudo is signed by your <strong style="color:var(--text)">agent key</strong> and stored on the <strong style="color:var(--text)">DHT</strong>. No server. No admin. Kudos are permanent and unforgeable.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { AppWebsocket, encodeHashToBase64, decodeHashFromBase64 } from "@holochain/client";
+
+const APP_ID = "holokudos";
+const ROLE   = "holokudos";
+const ZOME   = "kudos";
+const CATS   = [
+  { id:"collab", icon:"🤝", label:"Collaboration" },
+  { id:"code",   icon:"💻", label:"Code Quality" },
+  { id:"mentor", icon:"🎓", label:"Mentorship" },
+  { id:"idea",   icon:"💡", label:"Innovation" },
+  { id:"help",   icon:"🛠",  label:"Helpfulness" },
+  { id:"comms",  icon:"📣", label:"Communication" },
+];
+
+let client, myKey, cat = "collab", kudos = [];
+
+// ── Connect ─────────────────────────────────────────────────────────────────
+// tauri-plugin-holochain sets window.__HC_LAUNCHER_ENV__.APP_INTERFACE_PORT
+// For dev/browser use: ?port=XXXX
+async function connect() {
+  const port =
+    window.__HC_LAUNCHER_ENV__?.APP_INTERFACE_PORT ||
+    new URLSearchParams(location.search).get("port") ||
+    8888;
+  try {
+    client = await AppWebsocket.connect(`ws://localhost:${port}`);
+    const info = await client.appInfo({ installed_app_id: APP_ID });
+    if (!info) throw new Error("App not installed");
+    myKey = info.agent_pub_key;
+    document.getElementById("myKey").textContent = short(myKey);
+    document.getElementById("splash").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    buildCats();
+    await refresh();
+    setInterval(refresh, 6000);
+  } catch (e) {
+    document.getElementById("splash").innerHTML =
+      `<div class="err"><strong>Could not connect to Holochain</strong><br><br>${e.message}<br><br>
+      If running from browser: add <code>?port=YOUR_APP_PORT</code><br>
+      If using the desktop app: please restart it.</div>`;
+  }
+}
+
+// ── Category buttons ─────────────────────────────────────────────────────────
+function buildCats() {
+  const g = document.getElementById("cats");
+  g.innerHTML = "";
+  CATS.forEach(c => {
+    const b = document.createElement("button");
+    b.className = "cat" + (c.id === cat ? " on" : "");
+    b.innerHTML = `<span class="ci">${c.icon}</span>${c.label}`;
+    b.onclick = () => { document.querySelectorAll(".cat").forEach(x=>x.classList.remove("on")); b.classList.add("on"); cat = c.id; };
+    g.appendChild(b);
+  });
+}
+
+// ── Send kudo ─────────────────────────────────────────────────────────────────
+window.send = async () => {
+  const sel  = document.getElementById("toAgent");
+  const text = document.getElementById("msg").value.trim();
+  let   to   = sel.value;
+
+  if (to === "__paste__") {
+    to = (prompt("Paste the recipient's agent public key:") || "").trim();
+    if (!to) return;
+  }
+  if (!to)   return toast("Select a recipient first");
+  if (!text) return toast("Write a message");
+
+  let recipient;
+  try { recipient = decodeHashFromBase64(to); } catch { return toast("Invalid agent key"); }
+
+  const btn = document.getElementById("sendBtn");
+  btn.disabled = true; btn.textContent = "Broadcasting…";
+  try {
+    await client.callZome({ role_name: ROLE, zome_name: ZOME, fn_name: "create_kudo",
+      payload: { recipient, category: cat, message: text } });
+    document.getElementById("msg").value = "";
+    toast("⚡ Kudo sent to the DHT!");
+    await refresh();
+  } catch(e) { toast("Error: " + e.message); }
+  finally { btn.disabled = false; btn.textContent = "⚡ Sign & Send to DHT"; }
+};
+
+// ── Refresh feed ──────────────────────────────────────────────────────────────
+async function refresh() {
+  const recs = await client.callZome({ role_name: ROLE, zome_name: ZOME, fn_name: "get_all_kudos", payload: null });
+  kudos = recs.map(r => {
+    const a = r.signed_action?.hashed;
+    return {
+      hash:      encodeHashToBase64(a?.hash || new Uint8Array(39)),
+      from:      encodeHashToBase64(a?.content?.author || new Uint8Array(39)),
+      timestamp: Number(a?.content?.timestamp || 0),
+      ...decodeEntry(r.entry?.Present?.entry),
+    };
+  }).sort((a,b) => b.timestamp - a.timestamp);
+
+  renderFeed();
+  renderStats();
+  discoverPeers();
+}
+
+function decodeEntry(bytes) {
+  try {
+    const obj = JSON.parse(new TextDecoder().decode(bytes));
+    return {
+      recipient: encodeHashToBase64(new Uint8Array(Object.values(obj.recipient))),
+      category:  obj.category,
+      message:   obj.message,
+    };
+  } catch { return { recipient: "", category: "collab", message: "(decode error)" }; }
+}
+
+function discoverPeers() {
+  const all = new Set([encodeHashToBase64(myKey)]);
+  kudos.forEach(k => { all.add(k.from); if (k.recipient) all.add(k.recipient); });
+  const sel = document.getElementById("toAgent");
+  const have = new Set([...sel.options].map(o=>o.value));
+  all.forEach(k => {
+    if (!have.has(k) && k !== encodeHashToBase64(myKey)) {
+      const o = document.createElement("option");
+      o.value = k; o.textContent = short(k);
+      sel.insertBefore(o, sel.options[sel.options.length - 1]);
+    }
+  });
+  document.getElementById("sPeers").textContent = all.size;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderFeed() {
+  const me = encodeHashToBase64(myKey);
+  const f  = document.getElementById("feed");
+  if (!kudos.length) { f.innerHTML = '<div class="empty">No kudos yet — be the first!</div>'; return; }
+  const catObj = id => CATS.find(c=>c.id===id) || CATS[0];
+  f.innerHTML = kudos.map(k => {
+    const c = catObj(k.category);
+    return `<div class="kcard">
+      <div class="kh">
+        <div class="ka">
+          <span class="fp">${k.from===me?"🟢 You":short(k.from)}</span>
+          <span class="arr">→</span>
+          <span class="tp">${k.recipient===me?"🟢 You":short(k.recipient)}</span>
+        </div>
+        <span class="ctag">${c.icon} ${c.label}</span>
+      </div>
+      <div class="km">"${esc(k.message)}"</div>
+      <div class="kf">
+        <div class="sig"><span class="ok">✓</span> verified · <span class="dh">${k.hash.slice(0,14)}…</span></div>
+        <div class="ts">${ago(k.timestamp/1000)}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderStats() {
+  document.getElementById("sKudos").textContent = kudos.length;
+  const me = encodeHashToBase64(myKey);
+  const cnt = {};
+  kudos.forEach(k => { cnt[k.recipient] = (cnt[k.recipient]||0)+1; });
+  const top = Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const medals = ["🥇","🥈","🥉","4","5"];
+  document.getElementById("lb").innerHTML = top.length
+    ? top.map(([k,n],i)=>`<div class="lr"><div class="lrank">${medals[i]}</div><div class="li"><div class="ln">${k===me?"You":"Agent"}</div><div class="lk">${short(k)}</div></div><div class="lc">${n}</div></div>`).join("")
+    : '<div class="empty" style="padding:12px">No data yet</div>';
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function short(b64) { return !b64||b64.length<10?b64:b64.slice(0,8)+"…"+b64.slice(-4); }
+function ago(s) { const d=Date.now()/1000-s; return d<60?"just now":d<3600?~~(d/60)+"m ago":d<86400?~~(d/3600)+"h ago":~~(d/86400)+"d ago"; }
+function esc(s) { return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function toast(m) { const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2800); }
+
+connect();
+</script>
+</body>
+</html>

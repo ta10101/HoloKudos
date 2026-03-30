@@ -1,0 +1,6 @@
+[workspace]
+members = [
+  "dna/zomes/integrity/kudos_integrity",
+  "dna/zomes/coordinator/kudos",
+]
+resolver = "2"

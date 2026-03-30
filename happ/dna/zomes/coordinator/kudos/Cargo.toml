@@ -1,0 +1,13 @@
+[package]
+name = "kudos"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "kudos"
+
+[dependencies]
+hdk = { version = "0.4", features = [] }
+serde = { version = "1", features = ["derive"] }
+kudos_integrity = { path = "../../integrity/kudos_integrity" }

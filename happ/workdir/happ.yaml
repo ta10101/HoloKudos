@@ -1,0 +1,14 @@
+---
+manifest_version: "1"
+name: holokudos
+description: "Decentralized peer recognition — cryptographically signed, DHT-stored kudos"
+roles:
+  - name: holokudos
+    provisioning:
+      strategy: create
+      deferred: false
+    dna:
+      bundled: "../dna/workdir/holokudos.dna"
+      modifiers:
+        network_seed: ~
+        properties: ~

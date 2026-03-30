@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HoloKudos</title>
+<!-- @holochain/client loaded from CDN (esm.sh) -->
+<script type="importmap">
+{
+  "imports": {
+    "@holochain/client": "https://esm.sh/@holochain/client@0.18"
+  }
+}
+</script>
+<style>
+  :root {
+    --bg: #0d0f14; --surface: #161a24; --border: #1e2535;
+    --accent: #00e5b4; --accent2: #7c6ff7; --text: #e8eaf0;
+    --muted: #6b7280; --gold: #f9c846;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px; border-bottom: 1px solid var(--border);
+    background: #0b0d12; position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .logo-text { font-size: 20px; font-weight: 700; }
+  .logo-text span { color: var(--accent); }
+  .tagline { font-size: 12px; color: var(--muted); }
+  .agent-badge { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px; font-size: 13px; }
+  .agent-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: pulse 2s infinite; }
+  .agent-key { font-family: monospace; color: var(--accent); font-size: 12px; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  #connecting { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; gap: 16px; color: var(--muted); font-size: 16px; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-box { background: rgba(255,77,109,.1); border: 1px solid rgba(255,77,109,.3); border-radius: 12px; padding: 20px; max-width: 500px; text-align: center; color: #ff4d6d; font-size: 14px; line-height: 1.6; }
+  .error-box code { background: rgba(255,255,255,.05); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 32px 16px; display: grid; grid-template-columns: 1fr 300px; gap: 24px; }
+  @media(max-width:700px){ .container{ grid-template-columns:1fr; } }
+  #app { display: none; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 16px; }
+  .card-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 16px; }
+
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
+  select, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 10px 14px; font-size: 14px; font-family: inherit; outline: none; transition: border-color .2s; }
+  select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: none; min-height: 80px; }
+
+  .cat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 12px; }
+  .cat-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px 6px; cursor: pointer; font-size: 11px; color: var(--muted); text-align: center; transition: all .15s; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .cat-btn:hover { border-color: var(--accent); color: var(--text); }
+  .cat-btn.active { border-color: var(--accent); background: rgba(0,229,180,.08); color: var(--accent); }
+  .cat-icon { font-size: 18px; }
+
+  .btn { width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; background: linear-gradient(135deg, var(--accent), #00b890); color: #0a1a14; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .feed-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+  .live-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: pulse 2s infinite; }
+
+  .kudo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 12px; animation: fadeIn .3s ease; position: relative; overflow: hidden; }
+  .kudo-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(to bottom, var(--accent), var(--accent2)); border-radius: 2px 0 0 2px; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+
+  .kudo-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 6px; }
+  .kudo-agents { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .pill { border-radius: 20px; padding: 3px 10px; font-family: monospace; font-size: 10px; }
+  .from-pill { background: var(--bg); border: 1px solid var(--border); color: var(--accent2); }
+  .to-pill { background: rgba(0,229,180,.1); border: 1px solid rgba(0,229,180,.25); color: var(--accent); }
+  .arrow { color: var(--muted); }
+  .cat-tag { display: flex; align-items: center; gap: 4px; font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; color: var(--muted); }
+
+  .kudo-msg { font-size: 14px; line-height: 1.6; margin: 10px 0; }
+  .kudo-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+  .sig { font-family: monospace; font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .sig-valid { color: var(--accent); }
+  .dht-hash { font-family: monospace; font-size: 10px; background: rgba(124,111,247,.1); border: 1px solid rgba(124,111,247,.2); color: var(--accent2); border-radius: 4px; padding: 2px 6px; }
+  .ts { font-size: 11px; color: var(--muted); }
+
+  .empty { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 0; }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+  .stat-num { font-size: 24px; font-weight: 700; color: var(--accent); }
+  .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .leader-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .leader-row:last-child { border-bottom: none; }
+  .leader-rank { width: 24px; text-align: center; font-size: 16px; }
+  .leader-info { flex: 1; overflow: hidden; }
+  .leader-name { font-size: 13px; font-weight: 600; }
+  .leader-key { font-family: monospace; font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .leader-count { background: rgba(0,229,180,.1); color: var(--accent); border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+  #toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--accent); color: #0a1a14; padding: 12px 24px; border-radius: 20px; font-weight: 600; font-size: 14px; transition: transform .3s; z-index: 999; pointer-events: none; }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <div class="logo-text">Holo<span>Kudos</span></div>
+      <div class="tagline">Decentralized Peer Recognition · Holochain</div>
+    </div>
+  </div>
+  <div class="agent-badge">
+    <div class="agent-dot"></div>
+    <span>You:</span>
+    <span class="agent-key" id="myKey">connecting…</span>
+  </div>
+</header>
+
+<!-- CONNECTING STATE -->
+<div id="connecting">
+  <div class="spinner"></div>
+  <div>Connecting to Holochain conductor…</div>
+</div>
+
+<!-- MAIN APP (shown after connect) -->
+<div id="app">
+  <div class="container">
+    <!-- LEFT -->
+    <div>
+      <div class="card">
+        <div class="card-title">Give Kudos</div>
+        <div style="margin-bottom:12px">
+          <label>To (Agent)</label>
+          <select id="toAgent"><option value="">Select a peer on the DHT…</option></select>
+        </div>
+        <div style="margin-bottom:12px">
+          <label>Category</label>
+          <div class="cat-grid" id="catGrid"></div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label>Message — signed by your agent key, stored permanently on the DHT</label>
+          <textarea id="kudoMsg" placeholder="What did they do? Be specific." maxlength="500"></textarea>
+        </div>
+        <button class="btn" id="submitBtn" onclick="giveKudo()">⚡ Sign & Broadcast to DHT</button>
+      </div>
+
+      <div class="feed-title"><div class="live-dot"></div> Live DHT Feed</div>
+      <div id="feed"><div class="empty">No kudos yet. Be the first!</div></div>
+    </div>
+
+    <!-- RIGHT -->
+    <div>
+      <div class="card">
+        <div class="card-title">Network Stats</div>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="stat-num" id="statKudos">0</div><div class="stat-lbl">Total Kudos</div></div>
+          <div class="stat-box"><div class="stat-num" id="statPeers">–</div><div class="stat-lbl">Peers Known</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Top Recipients</div>
+        <div id="leaderboard"><div class="empty" style="padding:16px">No data yet</div></div>
+      </div>
+      <div class="card" style="font-size:12px;color:var(--muted);line-height:1.7">
+        <div class="card-title">How it works</div>
+        Every kudo is an <strong style="color:var(--text)">entry</strong> on your source chain, signed by your ed25519 agent key and gossiped to the DHT. Recipients can't forge kudos — the author is cryptographically proven. No server. No database. No middleman.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import {
+  AppWebsocket,
+  encodeHashToBase64,
+  decodeHashFromBase64,
+} from "@holochain/client";
+
+// ── Config ─────────────────────────────────────────────────────────────────
+// hc sandbox assigns a random port; read from URL param ?port=XXXX
+// or fallback to the default sandbox port.
+const params   = new URLSearchParams(location.search);
+const HC_PORT  = params.get("port") || 8888;
+const APP_ID   = "holokudos";
+const ZOME     = "kudos";
+const ROLE     = "holokudos";
+
+// ── State ──────────────────────────────────────────────────────────────────
+let client, myAgentKey, selectedCat = "collab", kudos = [];
+
+const CATEGORIES = [
+  { id: "collab", icon: "🤝", label: "Collaboration" },
+  { id: "code",   icon: "💻", label: "Code Quality" },
+  { id: "mentor", icon: "🎓", label: "Mentorship" },
+  { id: "idea",   icon: "💡", label: "Innovation" },
+  { id: "help",   icon: "🛠", label: "Helpfulness" },
+  { id: "comms",  icon: "📣", label: "Communication" },
+];
+
+// ── Connect ────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    client = await AppWebsocket.connect(`ws://localhost:${HC_PORT}`);
+    const info = await client.appInfo({ installed_app_id: APP_ID });
+    if (!info) throw new Error(`App "${APP_ID}" not installed`);
+
+    myAgentKey = info.agent_pub_key;
+    document.getElementById("myKey").textContent = short(myAgentKey);
+    document.getElementById("connecting").style.display = "none";
+    document.getElementById("app").style.display = "block";
+
+    buildCatGrid();
+    await populatePeers(info);
+    await loadFeed();
+
+    // Poll for new kudos every 5 s (in production use signals instead)
+    setInterval(loadFeed, 5000);
+  } catch (err) {
+    document.getElementById("connecting").innerHTML = `
+      <div class="error-box">
+        <strong>Cannot connect to Holochain conductor</strong><br><br>
+        ${err.message}<br><br>
+        Make sure the sandbox is running:<br>
+        <code>./run.sh</code><br><br>
+        Then open: <code>http://localhost:PORT?port=APP_PORT</code><br>
+        (check run.sh output for the port number)
+      </div>`;
+  }
+}
+
+async function populatePeers(appInfo) {
+  // In a real network peers are discovered via gossip.
+  // For now list all agents we know about from the cell's agent_pub_key
+  // plus we call get_all_kudos to find agents mentioned there.
+  const sel = document.getElementById("toAgent");
+  sel.innerHTML = '<option value="">Select a peer…</option>';
+
+  const knownAgents = new Set();
+  // After loading kudos we'll add agents from the feed
+  knownAgents.add(encodeHashToBase64(myAgentKey));
+
+  // Add a text field fallback
+  const manual = document.createElement("option");
+  manual.value = "__manual__";
+  manual.textContent = "Enter agent key manually…";
+  sel.appendChild(manual);
+
+  document.getElementById("statPeers").textContent = knownAgents.size;
+}
+
+// ── Category grid ──────────────────────────────────────────────────────────
+function buildCatGrid() {
+  const grid = document.getElementById("catGrid");
+  grid.innerHTML = "";
+  CATEGORIES.forEach(c => {
+    const btn = document.createElement("button");
+    btn.className = "cat-btn" + (c.id === selectedCat ? " active" : "");
+    btn.innerHTML = `<span class="cat-icon">${c.icon}</span>${c.label}`;
+    btn.onclick = () => {
+      document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      selectedCat = c.id;
+    };
+    grid.appendChild(btn);
+  });
+}
+
+// ── Give Kudo ──────────────────────────────────────────────────────────────
+window.giveKudo = async function() {
+  const sel = document.getElementById("toAgent");
+  const msg = document.getElementById("kudoMsg").value.trim();
+  let recipientB64 = sel.value;
+
+  if (recipientB64 === "__manual__") {
+    recipientB64 = prompt("Paste agent public key (base64):") || "";
+    recipientB64 = recipientB64.trim();
+  }
+
+  if (!recipientB64) return toast("Select a recipient first!");
+  if (!msg)          return toast("Write a message!");
+
+  try {
+    const btn = document.getElementById("submitBtn");
+    btn.disabled = true;
+    btn.textContent = "Broadcasting…";
+
+    let recipient;
+    try { recipient = decodeHashFromBase64(recipientB64); }
+    catch { return toast("Invalid agent key"); }
+
+    await client.callZome({
+      role_name: ROLE,
+      zome_name: ZOME,
+      fn_name: "create_kudo",
+      payload: { recipient, category: selectedCat, message: msg },
+    });
+
+    document.getElementById("kudoMsg").value = "";
+    toast("⚡ Kudo signed & stored on the DHT!");
+    await loadFeed();
+  } catch (err) {
+    toast("Error: " + err.message);
+  } finally {
+    const btn = document.getElementById("submitBtn");
+    btn.disabled = false;
+    btn.textContent = "⚡ Sign & Broadcast to DHT";
+  }
+};
+
+// ── Load Feed ──────────────────────────────────────────────────────────────
+async function loadFeed() {
+  try {
+    const records = await client.callZome({
+      role_name: ROLE,
+      zome_name: ZOME,
+      fn_name: "get_all_kudos",
+      payload: null,
+    });
+
+    kudos = records.map(r => {
+      const entry  = r.entry?.Present?.entry;
+      const action = r.signed_action?.hashed;
+      const author = action?.content?.author;
+      return {
+        hash:      encodeHashToBase64(action?.hash || new Uint8Array(0)),
+        from:      author ? encodeHashToBase64(author) : "unknown",
+        timestamp: action?.content?.timestamp || 0,
+        ...(entry ? decodeKudo(entry) : {}),
+      };
+    }).sort((a, b) => b.timestamp - a.timestamp);
+
+    renderFeed();
+    updateStats();
+    discoverAgents();
+  } catch (err) {
+    console.error("loadFeed error:", err);
+  }
+}
+
+function decodeKudo(entryBytes) {
+  try {
+    const json = new TextDecoder().decode(entryBytes);
+    const obj  = JSON.parse(json);
+    return {
+      recipient: obj.recipient ? encodeHashToBase64(new Uint8Array(obj.recipient)) : "unknown",
+      category:  obj.category || "collab",
+      message:   obj.message  || "",
+    };
+  } catch { return { recipient: "unknown", category: "collab", message: "(decode error)" }; }
+}
+
+function discoverAgents() {
+  const known = new Set([encodeHashToBase64(myAgentKey)]);
+  kudos.forEach(k => { known.add(k.from); if (k.recipient) known.add(k.recipient); });
+
+  const sel = document.getElementById("toAgent");
+  const existing = new Set([...sel.options].map(o => o.value));
+  known.forEach(k => {
+    if (!existing.has(k) && k !== encodeHashToBase64(myAgentKey)) {
+      const o = document.createElement("option");
+      o.value = k;
+      o.textContent = short(k);
+      sel.insertBefore(o, sel.lastElementChild); // before "manual" option
+    }
+  });
+  document.getElementById("statPeers").textContent = known.size;
+}
+
+function renderFeed() {
+  const feed = document.getElementById("feed");
+  if (!kudos.length) { feed.innerHTML = '<div class="empty">No kudos yet. Be the first!</div>'; return; }
+
+  const isMe = k => k === encodeHashToBase64(myAgentKey);
+  const catObj = id => CATEGORIES.find(c => c.id === id) || CATEGORIES[0];
+
+  feed.innerHTML = kudos.map(k => {
+    const c = catObj(k.category);
+    return `
+    <div class="kudo-card">
+      <div class="kudo-header">
+        <div class="kudo-agents">
+          <span class="pill from-pill">${isMe(k.from) ? "🟢 You" : short(k.from)}</span>
+          <span class="arrow">→</span>
+          <span class="pill to-pill">${isMe(k.recipient) ? "🟢 You" : short(k.recipient)}</span>
+        </div>
+        <span class="cat-tag">${c.icon} ${c.label}</span>
+      </div>
+      <div class="kudo-msg">"${escHtml(k.message)}"</div>
+      <div class="kudo-footer">
+        <div class="sig"><span class="sig-valid">✓</span> verified · <span class="dht-hash">${k.hash.slice(0,14)}…</span></div>
+        <div class="ts">${timeAgo(k.timestamp / 1000)}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function updateStats() {
+  document.getElementById("statKudos").textContent = kudos.length;
+
+  const counts = {};
+  kudos.forEach(k => { counts[k.recipient] = (counts[k.recipient] || 0) + 1; });
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,5);
+  const medals = ["🥇","🥈","🥉","4","5"];
+  const lb = document.getElementById("leaderboard");
+  lb.innerHTML = sorted.length
+    ? sorted.map(([key,n],i) => `
+      <div class="leader-row">
+        <div class="leader-rank">${medals[i]}</div>
+        <div class="leader-info">
+          <div class="leader-name">${key === encodeHashToBase64(myAgentKey) ? "You" : "Agent"}</div>
+          <div class="leader-key">${short(key)}</div>
+        </div>
+        <div class="leader-count">${n} kudos</div>
+      </div>`).join("")
+    : '<div class="empty" style="padding:16px">No data yet</div>';
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function short(b64) {
+  if (!b64 || b64.length < 10) return b64;
+  return b64.slice(0, 8) + "…" + b64.slice(-4);
+}
+
+function timeAgo(sec) {
+  const d = Date.now()/1000 - sec;
+  if (d < 60)      return "just now";
+  if (d < 3600)    return Math.floor(d/60)   + "m ago";
+  if (d < 86400)   return Math.floor(d/3600) + "h ago";
+  return Math.floor(d/86400) + "d ago";
+}
+
+function escHtml(s) {
+  return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2800);
+}
+
+init();
+</script>
+</body>
+</html>
