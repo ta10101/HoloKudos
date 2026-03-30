@@ -5,8 +5,8 @@ set -e
 
 export PATH="$HOME/.local/bin:$PATH"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HAPP_DIR="$ROOT/holokudos-happ"
-DESKTOP_DIR="$ROOT/holokudos-desktop"
+HAPP_DIR="$ROOT/happ"
+DESKTOP_DIR="$ROOT/desktop"
 
 echo "━━━ Step 1: Compile zomes to WASM ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 rustup target add wasm32-unknown-unknown 2>/dev/null
